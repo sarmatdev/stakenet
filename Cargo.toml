@@ -1,7 +1,2 @@
 [workspace]
-members = [
-  "keepers/*",
-  "programs/*",
-  "tests",
-  "utils/*"
-]
+members = ["api", "keepers/*", "programs/*", "tests", "utils/*"]

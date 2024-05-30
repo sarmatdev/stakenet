@@ -1,2 +1,5 @@
 [workspace]
-members = ["api", "keepers/*", "programs/*", "tests", "utils/*"]
+members = ["keepers/*", "programs/*", "tests", "utils/*"]
+
+[profile.release]
+overflow-checks = true

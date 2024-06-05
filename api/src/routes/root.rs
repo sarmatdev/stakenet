@@ -1,5 +1,5 @@
 use axum::response::IntoResponse;
 
-pub async fn index() -> impl IntoResponse {
+pub async fn root() -> impl IntoResponse {
     "Jito Stakenet API"
 }

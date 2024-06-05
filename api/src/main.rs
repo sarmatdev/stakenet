@@ -6,30 +6,32 @@ use solana_sdk::pubkey::Pubkey;
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::info;
 
 mod routes;
+mod state;
 
-use crate::routes::index;
+use crate::routes::{root, validator_history};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Args {
     /// Bind address for the server
-    #[clap(long, env, default_value_t = SocketAddr::from_str("0.0.0.0:7001").unwrap())]
+    #[clap(long, env, default_value_t = SocketAddr::from_str("127.0.0.1:7001").unwrap())]
     bind_addr: SocketAddr,
 
     /// RPC url
-    #[clap(long, env)]
+    #[clap(long, env, default_value = "")]
     rpc_url: String,
 
     /// Program ID
-    #[clap(long, env)]
+    #[clap(
+        long,
+        env,
+        default_value = "HistoryJTGbKQD2mRgLZ3XhqHnN811Qpez8X9kCcGHoa"
+    )]
     program_id: Pubkey,
-}
-
-struct AppState {
-    pub rpc_client: RpcClient,
 }
 
 #[tokio::main]
@@ -44,9 +46,12 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let rpc_client = RpcClient::new(args.rpc_url.clone());
 
-    let app_state = Arc::new(AppState { rpc_client });
+    let state = Arc::new(Mutex::new(state::StateInternal::new(rpc_client)));
 
-    let router = Router::new().route("/", get(index)).with_state(app_state);
+    let router = Router::new()
+        .route("/", get(root))
+        .route("/validator_history/:vote_account", get(validator_history))
+        .with_state(state);
 
     info!("started rpc client at {}", args.rpc_url);
 

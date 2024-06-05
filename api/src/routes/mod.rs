@@ -1,3 +1,5 @@
-mod index;
+mod root;
+mod validator_history;
 
-pub use index::*;
+pub use root::*;
+pub use validator_history::*;

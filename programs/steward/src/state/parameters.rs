@@ -10,7 +10,7 @@ use crate::{
     errors::StewardError,
 };
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone)]
 pub struct UpdateParametersArgs {
     // Scoring parameters
     pub mev_commission_range: Option<u16>,
@@ -20,6 +20,7 @@ pub struct UpdateParametersArgs {
     pub instant_unstake_delinquency_threshold_ratio: Option<f64>,
     pub mev_commission_bps_threshold: Option<u16>,
     pub commission_threshold: Option<u8>,
+    pub historical_commission_threshold: Option<u8>,
     // Delegation parameters
     pub num_delegation_validators: Option<u32>,
     pub scoring_unstake_cap_bps: Option<u32>,
@@ -56,12 +57,15 @@ pub struct Parameters {
     /// Proportion of delinquent slots to total slots to trigger instant unstake
     pub instant_unstake_delinquency_threshold_ratio: f64,
 
-    /// Highest commission rate allowed in percent
+    /// Highest commission rate allowed in commission_range epochs, in percent
     pub commission_threshold: u8,
+
+    /// Highest commission rate allowed in tracked history
+    pub historical_commission_threshold: u8,
 
     /// Required so that the struct is 8-byte aligned
     /// https://doc.rust-lang.org/reference/type-layout.html#reprc-structs
-    pub padding0: [u8; 7],
+    pub padding0: [u8; 6],
 
     /////// Delegation parameters ///////
     /// Number of validators to delegate to
@@ -97,13 +101,13 @@ pub struct Parameters {
 }
 
 impl Parameters {
-    /// Update parameters that are present in the args struct and validates them
-    pub fn update(
-        &mut self,
+    /// Merges the updated parameters with the current parameters and validates them
+    pub fn get_valid_updated_parameters(
+        self,
         args: &UpdateParametersArgs,
         current_epoch: u64,
         slots_per_epoch: u64,
-    ) -> Result<()> {
+    ) -> Result<Parameters> {
         // Updates parameters and validates them
         let UpdateParametersArgs {
             mev_commission_range,
@@ -113,6 +117,7 @@ impl Parameters {
             instant_unstake_delinquency_threshold_ratio,
             mev_commission_bps_threshold,
             commission_threshold,
+            historical_commission_threshold,
             num_delegation_validators,
             scoring_unstake_cap_bps,
             instant_unstake_cap_bps,
@@ -125,7 +130,7 @@ impl Parameters {
             minimum_voting_epochs,
         } = *args;
 
-        let mut new_parameters = *self;
+        let mut new_parameters = self;
 
         if let Some(mev_commission_range) = mev_commission_range {
             new_parameters.mev_commission_range = mev_commission_range;
@@ -157,6 +162,10 @@ impl Parameters {
 
         if let Some(commission_threshold) = commission_threshold {
             new_parameters.commission_threshold = commission_threshold;
+        }
+
+        if let Some(historical_commission_threshold) = historical_commission_threshold {
+            new_parameters.historical_commission_threshold = historical_commission_threshold;
         }
 
         if let Some(num_delegation_validators) = num_delegation_validators {
@@ -200,9 +209,10 @@ impl Parameters {
             new_parameters.minimum_voting_epochs = minimum_voting_epochs;
         }
 
+        // Validation will throw an error if any of the parameters are invalid
         new_parameters.validate(current_epoch, slots_per_epoch)?;
-        *self = new_parameters;
-        Ok(())
+
+        Ok(new_parameters)
     }
 
     /// Validate reasonable bounds on parameters
@@ -241,6 +251,10 @@ impl Parameters {
         }
 
         if self.commission_threshold > COMMISSION_MAX {
+            return Err(StewardError::InvalidParameterValue.into());
+        }
+
+        if self.historical_commission_threshold > COMMISSION_MAX {
             return Err(StewardError::InvalidParameterValue.into());
         }
 
